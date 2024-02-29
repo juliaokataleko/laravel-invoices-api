@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Filters\V1\CustomerQuery;
+use App\Filters\V1\CustomerFilter;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreCustomerRequest;
 use App\Http\Requests\UpdateCustomerRequest;
@@ -18,12 +18,17 @@ class CustomerController extends Controller
      */
     public function index(Request $request)
     {
-        $filter = new CustomerQuery;
+        $filter = new CustomerFilter;
         $queryItems = $filter->transform($request);
 
-        if (count($queryItems) == 0) return new CustomerCollection(Customer::paginate());
+        $includeInvoices = $request->query('includeInvoices');
+        $customers =Customer::where($queryItems)
+        ->when($includeInvoices, function ($query) {
+            $query->with('invoices');
+        })
+        ->paginate()->appends($request->query());
 
-        return new CustomerCollection( Customer::where($queryItems)->paginate());
+        return new CustomerCollection($customers);
     }
 
     /**
@@ -45,8 +50,14 @@ class CustomerController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Customer $customer)
+    public function show(Request $request, Customer $customer)
     {
+        $includeInvoices = $request->query('includeInvoices');
+
+        if ($includeInvoices) {
+            return new CustomerResource($customer->loadMissing('invoices'));
+        }
+
         return new CustomerResource($customer);
     }
 
